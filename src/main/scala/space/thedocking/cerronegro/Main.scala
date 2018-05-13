@@ -6,7 +6,7 @@ object Main extends App {
   import argonaut._
   import Argonaut._
 
-  val fragment = JsonFragment(
+  val fragment1 = JsonFragment(
     "Bla",
     """
       |{
@@ -16,7 +16,12 @@ object Main extends App {
       |""".stripMargin
   )
 
-  val ctx = GenerationContext(fragment).toVO
+  val fragment2 = JsonFragment(
+    "someid",
+    "\"123\""
+  )
+
+  val ctx = GenerationContext(fragment1, fragment2).toVO
 
   implicit def ParserJsonFragmentCodecJson: CodecJson[ParsedJsonFragment] =
     casecodec3(ParsedJsonFragment.apply, ParsedJsonFragment.unapply)(
@@ -39,7 +44,9 @@ object Main extends App {
       "parsedFragments",
       "failedFragments",
       "missingDependencies",
-      "fragmentDependencies")
+      "fragmentDependencies"
+//      "rootFragments"
+    )
 
   implicit val showCtx: Show[GenerationContextVO] =
     Show.show(ctx => ctx.asJson.spaces4)

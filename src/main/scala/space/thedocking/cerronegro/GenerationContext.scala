@@ -61,9 +61,6 @@ case class GenerationFailure(override val name: String,
     extends GeneratedJson
     with ProcessFailure
 
-case class GenerationResult(generatedByName: Map[String, GeneratedJson],
-                            failed: Map[String, GenerationFailure])
-
 case object GenerationContext {
 
   val ExpressionRegex: Regex = """<[ ]*(\w+[ ]*)+>""".r
@@ -85,12 +82,13 @@ case class GenerationContextVO(
     parsedFragments: Map[String, ParsedJsonFragment],
     failedFragments: Map[String, FailedJsonFragment],
     missingDependencies: Map[String, Set[String]],
-    fragmentDependencies: Map[String, Set[String]],
+    fragmentDependencies: Map[String, Set[String]]
+//    rootFragments: List[String]
 )
 
 case class MissingDependency(missingDependencyName: String)
 
-trait JsonDependency {
+sealed trait JsonDependency {
   val dependencyName: String
 }
 
@@ -130,6 +128,7 @@ case class LazyGenerationContext(
         case (fragment, dependencies) =>
           fragment.fragmentName -> dependencies.map(_.dependencyName)
       })
+//      .withFieldComputed(_.rootFragments, _.rootFragments)
       .transform
   }
 
@@ -154,6 +153,21 @@ case class LazyGenerationContext(
       parsedFragments.values.map(findElementDependencies).unzip
     (missing.fold(Map.empty)(_ |+| _), found.fold(Map.empty)(_ |+| _))
   }
+
+  lazy val nonRootFragments: Set[ParsedJsonFragment] =
+    fragmentDependencies.values.flatten.flatMap { d: JsonDependency =>
+      val fragments: Set[ParsedJsonFragment] = d match {
+        case FragmentDependency(f: ParsedJsonFragment) => Set(f)
+        case FunctionDependency(jsonFunction) =>
+          jsonFunction.jsonFunctionDependencyNames.flatMap(dependencyName =>
+            parsedFragments.get(dependencyName))
+        case _ => Set.empty
+      }
+      fragments
+    }.toSet
+
+  lazy val rootFragments
+    : Set[ParsedJsonFragment] = parsedFragments.values.toSet -- nonRootFragments
 
   def findElementDependencies(fragment: ParsedJsonFragment)
     : (Map[ParsedJsonFragment, Set[MissingDependency]],
