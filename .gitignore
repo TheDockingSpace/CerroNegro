@@ -140,6 +140,15 @@ fabric.properties
 # Sonarlint plugin
 .idea/sonarlint
 
+# other
+.idea/hydra.xml
+.idea/misc.xml
+.idea/modules.xml
+.idea/modules/*
+.idea/sbt.xml
+.idea/scala_compiler.xml
+.idea/vcs.xml
+
 ### SBT ###
 # Simple Build Tool
 # http://www.scala-sbt.org/release/docs/Getting-Started/Directories.html#configuring-version-control
