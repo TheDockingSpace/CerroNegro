@@ -90,19 +90,23 @@ case class MissingDependency(missingDependencyName: String)
 
 sealed trait JsonDependency {
   val dependencyName: String
+  val location: List[String]
 }
 
-case class FragmentDependency(jsonFragment: JsonFragment)
+case class FragmentDependency(override val location: List[String],
+                              jsonFragment: JsonFragment)
     extends JsonDependency {
   override val dependencyName: String = jsonFragment.fragmentName
 }
 
-case class FunctionDependency(jsonFunction: ParsedJsonFunction)
+case class FunctionDependency(override val location: List[String],
+                              jsonFunction: ParsedJsonFunction)
     extends JsonDependency {
   override val dependencyName: String = jsonFunction.functionName.name
 }
 
 trait GenerationContext {
+  def rootFragments: Set[ParsedJsonFragment]
   def toVO: GenerationContextVO
 }
 
@@ -157,8 +161,8 @@ case class LazyGenerationContext(
   lazy val nonRootFragments: Set[ParsedJsonFragment] =
     fragmentDependencies.values.flatten.flatMap { d: JsonDependency =>
       val fragments: Set[ParsedJsonFragment] = d match {
-        case FragmentDependency(f: ParsedJsonFragment) => Set(f)
-        case FunctionDependency(jsonFunction) =>
+        case FragmentDependency(_, f: ParsedJsonFragment) => Set(f)
+        case FunctionDependency(_, jsonFunction) =>
           jsonFunction.jsonFunctionDependencyNames.flatMap(dependencyName =>
             parsedFragments.get(dependencyName))
         case _ => Set.empty
@@ -166,7 +170,7 @@ case class LazyGenerationContext(
       fragments
     }.toSet
 
-  lazy val rootFragments
+  override lazy val rootFragments
     : Set[ParsedJsonFragment] = parsedFragments.values.toSet -- nonRootFragments
 
   def findElementDependencies(fragment: ParsedJsonFragment)
@@ -187,16 +191,16 @@ case class LazyGenerationContext(
     (missing, found)
   }
 
-  def checkFragments(expressionString: String)
+  def checkFragments(expressionString: String, location: List[String])
     : Option[Set[Either[MissingDependency, JsonDependency]]] = {
     val dependencies: Option[Set[Either[MissingDependency, JsonDependency]]] =
       fragmentsByName
         .get(expressionString)
-        .map(f => Set(Right(FragmentDependency(f))))
+        .map(f => Set(Right(FragmentDependency(location, f))))
     dependencies
   }
 
-  def checkFunctions(expressionString: String)
+  def checkFunctions(expressionString: String, location: List[String])
     : Option[Set[Either[MissingDependency, JsonDependency]]] = {
     val jsonFunction: Option[ParsedJsonFunction] =
       expressionString.split(' ').toList match {
@@ -208,36 +212,36 @@ case class LazyGenerationContext(
       }
     val functionDependency
       : Option[Set[Either[MissingDependency, JsonDependency]]] =
-      jsonFunction.map(f => Set(Right(FunctionDependency(f))))
+      jsonFunction.map(f => Set(Right(FunctionDependency(location, f))))
     val functionDependencies
       : Option[Set[Either[MissingDependency, JsonDependency]]] =
       jsonFunction.flatMap { jsonFunction: ParsedJsonFunction =>
         val functionDependencies =
           jsonFunction.jsonFunctionDependencyNames.flatMap { expressionString =>
-            checkMatchedExpressions(expressionString)
+            checkMatchedExpressions(expressionString, location)
           }
         if (functionDependencies.isEmpty) None else functionDependencies.some
       }
     functionDependency |+| functionDependencies
   }
 
-  def checkExpressions(
-      stringValue: String): Set[Either[MissingDependency, JsonDependency]] = {
+  def checkExpressions(stringValue: String, location: List[String])
+    : Set[Either[MissingDependency, JsonDependency]] = {
     val matcher = ExpressionRegex.pattern.matcher(stringValue)
     if (matcher.matches()) {
-      checkMatchedExpressions(
-        matcher.toMatchResult
-          .group(1))
+      checkMatchedExpressions(matcher.toMatchResult
+                                .group(1),
+                              location)
     } else {
       Set.empty
     }
   }
 
-  def checkMatchedExpressions(expressionString: String)
+  def checkMatchedExpressions(expressionString: String, location: List[String])
     : Set[Either[MissingDependency, JsonDependency]] = {
-    val dependencies = checkFragments(expressionString) match {
+    val dependencies = checkFragments(expressionString, location) match {
       case None =>
-        checkFunctions(expressionString)
+        checkFunctions(expressionString, location)
       case s: Some[Set[Either[MissingDependency, JsonDependency]]] =>
         s
     }
@@ -247,40 +251,52 @@ case class LazyGenerationContext(
   @tailrec final def findElementDependencies(
       fragment: ParsedJsonFragment,
       elements: List[Json],
+      locations: List[List[String]] = Nil,
       dependencies: Map[ParsedJsonFragment,
                         Set[Either[MissingDependency, JsonDependency]]] =
-        Map.empty): Map[ParsedJsonFragment,
-                        Set[Either[MissingDependency, JsonDependency]]] = {
+        Map.empty): Map[
+    ParsedJsonFragment,
+    Set[Either[MissingDependency, JsonDependency]]] = {
     val (nextElements: List[Json],
+         nextLocations: List[List[String]],
          fragmentDependencies: Map[
            ParsedJsonFragment,
            Set[Either[MissingDependency, JsonDependency]]]) = {
-      val (nextElements, fragmentDependencies): (List[Json],
-                                                 Set[Either[MissingDependency,
-                                                            JsonDependency]]) =
+      val (nextElements, nextLocations, fragmentDependencies): (List[Json],
+                                                                List[
+                                                                  List[String]],
+                                                                Set[Either[
+                                                                  MissingDependency,
+                                                                  JsonDependency]]) = {
+        val location = locations.headOption.getOrElse(Nil)
+        val locationRest = if (locations.isEmpty) Nil else locations.tail
         elements match {
           case json :: rest if json.isString =>
             (rest,
+              locationRest,
              dependencies
                .getOrElse(fragment, Set.empty) ++ checkExpressions(
-               json.stringOrEmpty))
+               json.stringOrEmpty,
+               location))
           case json :: rest if json.isArray =>
-            (rest ++ json.arrayOrEmpty, Set.empty)
+            val jsonArray = json.arrayOrEmpty
+            (rest ++ jsonArray, locationRest ++ ((0 until jsonArray.size).map(location :+ _.toString)),  Set.empty)
           case json :: rest if json.isObject =>
-            (rest ++ json.objectValuesOrEmpty, Set.empty)
+            val jsonObjectValues = json.objectValuesOrEmpty
+            (rest ++ jsonObjectValues, locationRest ++ ((0 until jsonObjectValues.size).map(location :+ _.toString)), Set.empty)
           case Nil =>
-            (Nil, Set.empty)
+            (Nil, Nil, Set.empty)
           case _ :: rest =>
-            (rest, Set.empty)
-        }
-      (nextElements,
+            (rest, locationRest, Set.empty)
+        }}
+      (nextElements, nextLocations,
        if (fragmentDependencies.isEmpty) dependencies
        else Map(fragment -> fragmentDependencies) |+| dependencies)
     }
     if (nextElements.isEmpty) {
       fragmentDependencies
     } else {
-      findElementDependencies(fragment, nextElements, fragmentDependencies)
+      findElementDependencies(fragment, nextElements, nextLocations, fragmentDependencies)
     }
   }
 

@@ -21,7 +21,8 @@ object Main extends App {
     "\"123\""
   )
 
-  val ctx = GenerationContext(fragment1, fragment2).toVO
+  val ctx = GenerationContext(fragment1, fragment2)
+  val ctxVO = ctx.toVO
 
   implicit def ParserJsonFragmentCodecJson: CodecJson[ParsedJsonFragment] =
     casecodec3(ParsedJsonFragment.apply, ParsedJsonFragment.unapply)(
@@ -51,5 +52,6 @@ object Main extends App {
   implicit val showCtx: Show[GenerationContextVO] =
     Show.show(ctx => ctx.asJson.spaces4)
 
-  println(ctx.show)
+  println(ctx.rootFragments)
+  println(ctxVO.show)
 }
