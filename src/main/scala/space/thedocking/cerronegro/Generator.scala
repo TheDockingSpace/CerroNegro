@@ -9,9 +9,12 @@ trait Generator {
 
 class JsonGenerator extends Generator {
   override def process(context: GenerationContext): GenerationResult = {
-    context.rootFragments.map { f =>
+    for {
+      fragment <- context.rootFragments
+      json = fragment.json
+      dependencies <- context.fragmentDependencies
 
-    }
+    } yield (json.name)
     ???
   }
 }

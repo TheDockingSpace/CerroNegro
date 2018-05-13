@@ -107,6 +107,7 @@ case class FunctionDependency(override val location: List[String],
 
 trait GenerationContext {
   def rootFragments: Set[ParsedJsonFragment]
+  def fragmentDependencies: Map[ParsedJsonFragment, Set[JsonDependency]])
   def toVO: GenerationContextVO
 }
 
