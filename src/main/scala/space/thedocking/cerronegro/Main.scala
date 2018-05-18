@@ -54,4 +54,9 @@ object Main extends App {
 
   println(ctx.rootFragments)
   println(ctxVO.show)
+
+  implicit val generator = JsonGenerator
+  val generated = ctx.generate
+
+  println(generated)
 }
