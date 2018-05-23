@@ -1,10 +1,18 @@
 package space.thedocking.cerronegro
 
+import slogging.{LogLevel, LoggerConfig, PrintLoggerFactory}
+
 object Main extends App {
   import cats.Show
   import cats.implicits._
   import argonaut._
+  import DecodeJsonCats.NonEmptyListDecodeJson
+  import EncodeJsonCats.NonEmptyListEncodeJson
+  import JsonCats._
   import Argonaut._
+
+  LoggerConfig.factory = PrintLoggerFactory()
+  LoggerConfig.level = LogLevel.DEBUG
 
   val fragment1 = JsonFragment(
     "Bla",
@@ -37,8 +45,10 @@ object Main extends App {
       "failure")
 
   implicit def MissingDependencyCodecJson: CodecJson[MissingDependency] =
-    casecodec1(MissingDependency.apply, MissingDependency.unapply)(
-      "missingDependencyName")
+    casecodec3(MissingDependency.apply, MissingDependency.unapply)(
+      "location",
+      "dependencyName",
+      "dependencyExpression")
 
   implicit def GenerationContextVOCodecJson: CodecJson[GenerationContextVO] =
     casecodec4(GenerationContextVO.apply, GenerationContextVO.unapply)(
@@ -55,7 +65,8 @@ object Main extends App {
   println(ctx.rootFragments)
   println(ctxVO.show)
 
-  implicit val generator = JsonGenerator
+  implicit val generator: Generator = JsonGenerator
+
   val generated = ctx.generate
 
   println(generated)
