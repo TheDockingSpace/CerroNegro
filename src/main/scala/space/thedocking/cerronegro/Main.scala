@@ -1,15 +1,10 @@
 package space.thedocking.cerronegro
 
 import slogging.{LogLevel, LoggerConfig, PrintLoggerFactory}
+import implicits._
+import cats.implicits._
 
 object Main extends App {
-  import cats.Show
-  import cats.implicits._
-  import argonaut._
-  import DecodeJsonCats.NonEmptyListDecodeJson
-  import EncodeJsonCats.NonEmptyListEncodeJson
-  import JsonCats._
-  import Argonaut._
 
   LoggerConfig.factory = PrintLoggerFactory()
   LoggerConfig.level = LogLevel.DEBUG
@@ -31,36 +26,6 @@ object Main extends App {
 
   val ctx = GenerationContext(fragment1, fragment2)
   val ctxVO = ctx.toVO
-
-  implicit def ParserJsonFragmentCodecJson: CodecJson[ParsedJsonFragment] =
-    casecodec3(ParsedJsonFragment.apply, ParsedJsonFragment.unapply)(
-      "fragmentName",
-      "str",
-      "json")
-
-  implicit def FailedJsonFragmentCodecJson: CodecJson[FailedJsonFragment] =
-    casecodec3(FailedJsonFragment.apply, FailedJsonFragment.unapply)(
-      "fragmentName",
-      "str",
-      "failure")
-
-  implicit def MissingDependencyCodecJson: CodecJson[MissingDependency] =
-    casecodec3(MissingDependency.apply, MissingDependency.unapply)(
-      "location",
-      "dependencyName",
-      "dependencyExpression")
-
-  implicit def GenerationContextVOCodecJson: CodecJson[GenerationContextVO] =
-    casecodec4(GenerationContextVO.apply, GenerationContextVO.unapply)(
-      "parsedFragments",
-      "failedFragments",
-      "missingDependencies",
-      "fragmentDependencies"
-//      "rootFragments"
-    )
-
-  implicit val showCtx: Show[GenerationContextVO] =
-    Show.show(ctx => ctx.asJson.spaces4)
 
   println(ctx.rootFragments)
   println(ctxVO.show)

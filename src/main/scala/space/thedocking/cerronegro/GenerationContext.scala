@@ -1,41 +1,114 @@
 package space.thedocking.cerronegro
 
+import java.util.UUID
+
+import argonaut.Argonaut._
+import argonaut.DecodeJsonCats.NonEmptyListDecodeJson
+import argonaut.EncodeJsonCats.NonEmptyListEncodeJson
 import argonaut._
-import Argonaut._
+import cats.Show
 import cats.data.NonEmptyList
-import cats.instances.all._
-import cats.syntax.all._
-import space.thedocking.cerronegro.ArgonautUtils.{
-  jsonArrayToMap,
-  jsonObjectToMap
-}
+import cats.implicits._
+import space.thedocking.cerronegro.ArgonautUtils.{jsonArrayToMap, jsonObjectToMap}
 
 import scala.annotation.tailrec
 import scala.reflect.ClassTag
 import scala.util.matching.Regex
 
+package object implicits {
+
+  implicit def ParsedJsonFragmentCodecJson: CodecJson[ParsedJsonFragment] =
+    casecodec3(ParsedJsonFragment.apply, ParsedJsonFragment.unapply)(
+      "fragmentName",
+      "str",
+      "json")
+
+  implicit def EachJsonFunctionCodecJson: CodecJson[EachJsonFunction] =
+    casecodec1(EachJsonFunction.apply, EachJsonFunction.unapply)(
+      "jsonFunctionArguments")
+
+  implicit def FailedJsonFragmentCodecJson: CodecJson[FailedJsonFragment] =
+    casecodec3(FailedJsonFragment.apply, FailedJsonFragment.unapply)(
+      "fragmentName",
+      "str",
+      "failure")
+
+  implicit def MissingDependencyCodecJson: CodecJson[MissingDependency] =
+    casecodec3(MissingDependency.apply, MissingDependency.unapply)(
+      "location",
+      "dependencyName",
+      "dependencyExpression")
+
+  implicit def FailedFragmentDependencyCodecJson: CodecJson[FailedFragmentDependency] =
+    casecodec3(FailedFragmentDependency.apply, FailedFragmentDependency.unapply)(
+      "location",
+      "dependencyExpression",
+      "jsonFragment")
+
+  implicit def FunctionDependencyCodecJson: CodecJson[FunctionDependency] =
+    casecodec3(FunctionDependency.apply, FunctionDependency.unapply)(
+      "location",
+      "dependencyExpression",
+      "jsonFunction")
+
+  implicit def ParsedFragmentDependencyCodecJson: CodecJson[ParsedFragmentDependency] =
+    casecodec3(ParsedFragmentDependency.apply, ParsedFragmentDependency.unapply)(
+      "location",
+      "dependencyExpression",
+      "jsonFragment")
+
+  implicit def GenerationContextVOCodecJson: CodecJson[GenerationContextVO] =
+    casecodec4(GenerationContextVO.apply, GenerationContextVO.unapply)(
+      "parsedFragments",
+      "failedFragments",
+      "missingDependencies",
+      "fragmentDependencies"
+      //      "rootFragments"
+    )
+
+  private def tagged[A](tag: String, c: HCursor, decoder: DecodeJson[A]): DecodeResult[A] =
+  (c --\ tag).hcursor.fold(DecodeResult.fail[A]("Invalid tagged type", c.history))(decoder.decode)
+
+  implicit def ParsedJsonFunctionEncodeJson: EncodeJson[ParsedJsonFunction] =
+    EncodeJson(_ match {
+      case EachJsonFunction(args) => Json("each" := Json("arguments" := args))
+      case EchoJsonFunction(args) => Json("echo" := Json("arguments" := args))
+    })
+
+  implicit def ParsedJsonFunctionDecodeJson: DecodeJson[ParsedJsonFunction] =
+    DecodeJson(c =>
+        tagged("each", c, implicitly[DecodeJson[List[String]]].map(EachJsonFunction)) |||
+          tagged("echo", c, implicitly[DecodeJson[List[String]]].map(EchoJsonFunction)))
+
+  implicit val showCtx: Show[GenerationContextVO] =
+    Show.show(ctx => ctx.asJson.spaces2)
+
+}
+
 sealed trait ProcessFailure {
   val failure: String
 }
 
-sealed trait GeneratorStackElement
+sealed trait GeneratorStackElement {
+  val name: String
+}
 
 sealed trait ProcessSuccess extends GeneratorStackElement {
   val json: Json
 }
 
 sealed trait JsonFragment {
-  val fragmentName: String
+  val name: String
   def str: String
 }
 
-case class ParsedJsonFragment(override val fragmentName: String,
+case class ParsedJsonFragment(override val name: String,
                               override val str: String,
                               override val json: Json)
     extends JsonFragment
     with ProcessSuccess
 
-case class FailedJsonFragment(override val fragmentName: String,
+case class FailedJsonFragment(override val name: String,
                               override val str: String,
                               override val failure: String)
     extends JsonFragment
@@ -60,6 +133,7 @@ case class GenerationSuccess(override val jsonDependency: JsonDependency,
     extends GeneratedJson
     with ProcessSuccess
     with GeneratorStackElement {
+  override lazy val name: String = jsonDependency.name
   override lazy val str: String = json.spaces4
 }
 
@@ -74,12 +148,13 @@ case object GenerationContext {
   val ExpressionRegex: Regex = """<[ ]*(\w+[ ]*)+>""".r
 
   val jsonFunctionParsers: Map[Symbol, JsonFunctionParser] = Map(
-    EachJsonFunction.functionName -> EachJsonFunction)
+    EachJsonFunctionParser.functionName -> EachJsonFunctionParser,
+    EchoJsonFunctionParser.functionName -> EchoJsonFunctionParser)
 
   def apply(fragments: Set[JsonFragment],
             jsonFunctionParsers: Map[Symbol, JsonFunctionParser] =
               jsonFunctionParsers): GenerationContext =
-    LazyGenerationContext(fragments.map(f => f.fragmentName -> f).toMap,
+    LazyGenerationContext(UUID.randomUUID.toString,fragments.map(f => f.name -> f).toMap,
                           jsonFunctionParsers)
 
   def apply(fragments: JsonFragment*): GenerationContext =
@@ -96,7 +171,6 @@ case class GenerationContextVO(
 )
 
 sealed trait JsonDependency extends GeneratorStackElement {
-  val dependencyName: String
   val dependencyExpression: String
   val location: NonEmptyList[String]
 }
@@ -106,28 +180,28 @@ sealed trait FailedDependency extends JsonDependency
 sealed trait ValidDependency extends JsonDependency
 
 case class MissingDependency(override val location: NonEmptyList[String],
-                             override val dependencyName: String,
+                             override val name: String,
                              override val dependencyExpression: String) extends FailedDependency
 
 case class FailedFragmentDependency(override val location: NonEmptyList[String],
                                     override val dependencyExpression: String,
                                     jsonFragment: FailedJsonFragment)
   extends FailedDependency {
-  override val dependencyName: String = jsonFragment.fragmentName
+  override val name: String = jsonFragment.name
 }
 
 case class ParsedFragmentDependency(override val location: NonEmptyList[String],
                               override val dependencyExpression: String,
                               jsonFragment: ParsedJsonFragment)
     extends ValidDependency {
-  override val dependencyName: String = jsonFragment.fragmentName
+  override val name: String = jsonFragment.name
 }
 
 case class FunctionDependency(override val location: NonEmptyList[String],
                               override val dependencyExpression: String,
                               jsonFunction: ParsedJsonFunction)
     extends ValidDependency {
-  override val dependencyName: String = jsonFunction.functionName.name
+  override val name: String = jsonFunction.functionName.name
 }
 
 trait GenerationContext extends GeneratorStackElement {
@@ -142,6 +216,7 @@ trait GenerationContext extends GeneratorStackElement {
 }
 
 case class LazyGenerationContext(
+                                override val name: String,
     fragmentsByName: Map[String, JsonFragment],
     jsonFunctionParsers: Map[Symbol, JsonFunctionParser])
     extends GenerationContext {
@@ -156,12 +231,12 @@ case class LazyGenerationContext(
         _.missingDependencies,
         _.missingDependencies.map {
           case (fragment, missing) =>
-            fragment.fragmentName -> missing.map(_.dependencyName)
+            fragment.name -> missing.map(_.name)
         }
       )
       .withFieldComputed(_.fragmentDependencies, _.fragmentDependencies.map {
         case (fragment, dependencies) =>
-          fragment.fragmentName -> dependencies.map(_.dependencyName)
+          fragment.name -> dependencies.map(_.name)
       })
 //      .withFieldComputed(_.rootFragments, _.rootFragments)
       .transform
@@ -175,7 +250,7 @@ case class LazyGenerationContext(
         implicit classTag: ClassTag[T]): Map[String, T] =
       grouped
         .getOrElse(classTag.runtimeClass.asInstanceOf[Class[T]], Nil)
-        .map(f => f.fragmentName -> f.asInstanceOf[T])
+        .map(f => f.name -> f.asInstanceOf[T])
         .toMap[String, T]
     (classFragmentsByName[ParsedJsonFragment],
      classFragmentsByName[FailedJsonFragment])
@@ -199,7 +274,7 @@ case class LazyGenerationContext(
 
   override lazy val missingDependenciesByName: Map[String, FailedDependency] = {
     missingDependencies.values.flatten.toSet.map { d: FailedDependency =>
-      d.dependencyName -> d
+      d.name -> d
     }.toMap
   }
 

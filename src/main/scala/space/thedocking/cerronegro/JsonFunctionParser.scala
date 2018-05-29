@@ -12,16 +12,29 @@ trait ParsedJsonFunction {
   val isValid: Boolean
 }
 
-case object EachJsonFunction extends JsonFunctionParser {
+case object EachJsonFunctionParser extends JsonFunctionParser {
   override val functionName: Symbol = 'each
   override def eval(arguments: List[String]): ParsedJsonFunction =
     EachJsonFunction(arguments)
 }
 
-case class EachJsonFunction(override val jsonFunctionArguments: List[String])
+final case class EachJsonFunction(override val jsonFunctionArguments: List[String])
     extends ParsedJsonFunction {
-  override val functionName: Symbol = EachJsonFunction.functionName
+  override val functionName: Symbol = EachJsonFunctionParser.functionName
   override val jsonFunctionDependencyNames: Set[String] = Set(
     jsonFunctionArguments(0))
   override val isValid: Boolean = jsonFunctionArguments.size == 1
+}
+
+case object EchoJsonFunctionParser extends JsonFunctionParser {
+  override val functionName: Symbol = 'echo
+  override def eval(arguments: List[String]): ParsedJsonFunction =
+    EchoJsonFunction(arguments)
+}
+
+final case class EchoJsonFunction(override val jsonFunctionArguments: List[String])
+  extends ParsedJsonFunction {
+  override val functionName: Symbol = EachJsonFunctionParser.functionName
+  override val jsonFunctionDependencyNames: Set[String] = Set.empty
+  override val isValid: Boolean = jsonFunctionArguments.size > 0
 }
