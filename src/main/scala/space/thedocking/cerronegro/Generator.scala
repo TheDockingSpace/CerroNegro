@@ -120,7 +120,22 @@ object JsonGenerator extends Generator with LazyLogging {
       implicit context: GenerationContext)
     : Either[GenerationFailure, GenerationSuccess] = {
     logger.debug(dependency.toString)
-    ???
+    dependency match {
+      case m: MissingDependency =>
+        GenerationFailure(m,
+                          m.dependencyExpression,
+                          s"Cannot generate JSON output for ${
+                            m.dependencyName
+                          } as it has not been found in the current context").asLeft
+      case f: ParsedFragmentDependency
+          if context.missingDependencies.contains(f.jsonFragment) =>
+        GenerationFailure(f,
+                          f.dependencyExpression,
+                          s"Cannot generate JSON output for ${
+                            f.dependencyName
+                          } as it has missing dependencies").asLeft
+      case fn: FunctionDependency => ???
+    }
   }
 
   def processParsedJson(json: Json,
@@ -129,19 +144,17 @@ object JsonGenerator extends Generator with LazyLogging {
                         generationStack: NonEmptyList[GeneratorStackElement])(
       implicit context: GenerationContext)
     : Either[GenerationFailure, GenerationSuccess] = {
-    Right {
-      val r: (Product, List[String]) = location.toList match {
-        case elementName :: rest =>
-          (processJsonLevel(json,
-                            NonEmptyList.of("_root_", elementName),
-                            rest,
-                            generationStack),
-           rest)
-        case Nil =>
-          ???
-      }
-      GenerationSuccess(jsonDependency, json)
+    val r: (Product, List[String]) = location.toList match {
+      case elementName :: rest =>
+        (processJsonLevel(json,
+                          NonEmptyList.of("_root_", elementName),
+                          rest,
+                          generationStack),
+         rest)
+      case Nil =>
+        ???
     }
+    GenerationSuccess(jsonDependency, json).asRight
   }
 
   def processParsedJsonFragment(
