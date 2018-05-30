@@ -1,19 +1,19 @@
 package space.thedocking.cerronegro
 
+import argonaut.Argonaut._
 import argonaut._
-import Argonaut._
 import cats.Monoid
 import cats.data.NonEmptyList
 import cats.syntax.all._
 import slogging.LazyLogging
 import space.thedocking.cerronegro.GenerationContext.ExpressionRegex
-import implicits._
+import space.thedocking.cerronegro.implicits._
 
 import scala.annotation.tailrec
 
 case class GenerationResult(
-    generatedByName: Map[String, GeneratedJson] = Map(),
-    failedByName: Map[String, GenerationFailure] = Map())
+    generatedByName: Map[String, GeneratedJson] = Map.empty,
+    failedByName: Map[String, GenerationFailure] = Map.empty)
 
 object GenerationResult {
   val empty = GenerationResult()
@@ -22,11 +22,9 @@ object GenerationResult {
       outcome: Either[GenerationFailure, GenerationSuccess]): GenerationResult =
     outcome match {
       case Left(f) =>
-        GenerationResult(
-          failedByName = Map(f.jsonDependency.name -> f))
+        GenerationResult(failedByName = Map(f.jsonDependency.name -> f))
       case Right(g) =>
-        GenerationResult(
-          generatedByName = Map(g.jsonDependency.name -> g))
+        GenerationResult(generatedByName = Map(g.jsonDependency.name -> g))
     }
 }
 
@@ -124,25 +122,22 @@ object JsonGenerator extends Generator with LazyLogging {
     logger.debug(dependency.asJson.spaces2)
     dependency match {
       case m: MissingDependency =>
-        GenerationFailure(m,
-                          m.dependencyExpression,
-                          s"Cannot generate JSON output for ${
-                            m.name
-                          } as it has not been found in the current context").asLeft
+        GenerationFailure(
+          m,
+          m.dependencyExpression,
+          s"Cannot generate JSON output for ${m.name} as it has not been found in the current context").asLeft
       case f: ParsedFragmentDependency
           if context.missingDependencies.contains(f.jsonFragment) =>
-        GenerationFailure(f,
-                          f.dependencyExpression,
-                          s"Cannot generate JSON output for ${
-                            f.name
-                          } as it has missing dependencies").asLeft
-      case f: ParsedFragmentDependency
-        if context.fragmentDependencies.contains(f.jsonFragment) =>
-        GenerationFailure(f,
+        GenerationFailure(
+          f,
           f.dependencyExpression,
-          s"Cannot generate JSON output for ${
-            f.name
-          } as it has missing dependencies").asLeft
+          s"Cannot generate JSON output for ${f.name} as it has missing dependencies").asLeft
+      case f: ParsedFragmentDependency
+          if context.fragmentDependencies.contains(f.jsonFragment) =>
+        GenerationFailure(
+          f,
+          f.dependencyExpression,
+          s"Cannot generate JSON output for ${f.name} as it has missing dependencies").asLeft
       case fn: FunctionDependency => ???
     }
   }

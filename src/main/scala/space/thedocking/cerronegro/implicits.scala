@@ -30,11 +30,12 @@ package object implicits {
       "dependencyName",
       "dependencyExpression")
 
-  implicit def FailedFragmentDependencyCodecJson: CodecJson[FailedFragmentDependency] =
-    casecodec3(FailedFragmentDependency.apply, FailedFragmentDependency.unapply)(
-      "location",
-      "dependencyExpression",
-      "jsonFragment")
+  implicit def FailedFragmentDependencyCodecJson
+    : CodecJson[FailedFragmentDependency] =
+    casecodec3(FailedFragmentDependency.apply,
+               FailedFragmentDependency.unapply)("location",
+                                                 "dependencyExpression",
+                                                 "jsonFragment")
 
   implicit def FunctionDependencyCodecJson: CodecJson[FunctionDependency] =
     casecodec3(FunctionDependency.apply, FunctionDependency.unapply)(
@@ -42,11 +43,12 @@ package object implicits {
       "dependencyExpression",
       "jsonFunction")
 
-  implicit def ParsedFragmentDependencyCodecJson: CodecJson[ParsedFragmentDependency] =
-    casecodec3(ParsedFragmentDependency.apply, ParsedFragmentDependency.unapply)(
-      "location",
-      "dependencyExpression",
-      "jsonFragment")
+  implicit def ParsedFragmentDependencyCodecJson
+    : CodecJson[ParsedFragmentDependency] =
+    casecodec3(ParsedFragmentDependency.apply,
+               ParsedFragmentDependency.unapply)("location",
+                                                 "dependencyExpression",
+                                                 "jsonFragment")
 
   implicit def GenerationContextVOCodecJson: CodecJson[GenerationContextVO] =
     casecodec4(GenerationContextVO.apply, GenerationContextVO.unapply)(
@@ -57,8 +59,11 @@ package object implicits {
       //      "rootFragments"
     )
 
-  private def tagged[A](tag: String, c: HCursor, decoder: DecodeJson[A]): DecodeResult[A] =
-    (c --\ tag).hcursor.fold(DecodeResult.fail[A]("Invalid tagged type", c.history))(decoder.decode)
+  private def tagged[A](tag: String,
+                        c: HCursor,
+                        decoder: DecodeJson[A]): DecodeResult[A] =
+    (c --\ tag).hcursor.fold(
+      DecodeResult.fail[A]("Invalid tagged type", c.history))(decoder.decode)
 
   implicit def ParsedJsonFunctionEncodeJson: EncodeJson[ParsedJsonFunction] =
     EncodeJson(_ match {
@@ -67,23 +72,29 @@ package object implicits {
     })
 
   implicit def ParsedJsonFunctionDecodeJson: DecodeJson[ParsedJsonFunction] =
-    DecodeJson(c =>
-      tagged("each", c, implicitly[DecodeJson[List[String]]].map(EachJsonFunction)) |||
-        tagged("echo", c, implicitly[DecodeJson[List[String]]].map(EchoJsonFunction)))
+    DecodeJson(
+      c =>
+        tagged("each",
+               c,
+               implicitly[DecodeJson[List[String]]].map(EachJsonFunction)) |||
+          tagged("echo",
+                 c,
+                 implicitly[DecodeJson[List[String]]].map(EchoJsonFunction)))
 
-  implicit val JsonDependencyCodecJson: CodecJson[JsonDependency] = CodecJson[JsonDependency](
-    {
-      case d: FailedFragmentDependency => FailedFragmentDependencyCodecJson(d)
-      case d: FunctionDependency => FunctionDependencyCodecJson(d)
-      case d: MissingDependency => MissingDependencyCodecJson(d)
-      case d: ParsedFragmentDependency => ParsedFragmentDependencyCodecJson(d)
-    },
-    (FailedFragmentDependencyCodecJson
-    |||[FunctionDependency, JsonDependency] FunctionDependencyCodecJson
-      |||[MissingDependency, JsonDependency] MissingDependencyCodecJson
-      |||[ParsedFragmentDependency, JsonDependency] ParsedFragmentDependencyCodecJson)
-      .map(d => d: JsonDependency)(_)
-  )
+  implicit val JsonDependencyCodecJson: CodecJson[JsonDependency] =
+    CodecJson[JsonDependency](
+      {
+        case d: FailedFragmentDependency => FailedFragmentDependencyCodecJson(d)
+        case d: FunctionDependency       => FunctionDependencyCodecJson(d)
+        case d: MissingDependency        => MissingDependencyCodecJson(d)
+        case d: ParsedFragmentDependency => ParsedFragmentDependencyCodecJson(d)
+      },
+      (FailedFragmentDependencyCodecJson
+        ||| [FunctionDependency, JsonDependency] FunctionDependencyCodecJson
+        ||| [MissingDependency, JsonDependency] MissingDependencyCodecJson
+        ||| [ParsedFragmentDependency, JsonDependency] ParsedFragmentDependencyCodecJson)
+        .map(d => d: JsonDependency)(_)
+    )
 
   implicit val showCtx: Show[GenerationContextVO] =
     Show.show(ctx => ctx.asJson.spaces2)

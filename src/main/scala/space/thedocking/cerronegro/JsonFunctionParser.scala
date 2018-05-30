@@ -18,7 +18,8 @@ case object EachJsonFunctionParser extends JsonFunctionParser {
     EachJsonFunction(arguments)
 }
 
-final case class EachJsonFunction(override val jsonFunctionArguments: List[String])
+final case class EachJsonFunction(
+    override val jsonFunctionArguments: List[String])
     extends ParsedJsonFunction {
   override val functionName: Symbol = EachJsonFunctionParser.functionName
   override val jsonFunctionDependencyNames: Set[String] = Set(
@@ -32,8 +33,9 @@ case object EchoJsonFunctionParser extends JsonFunctionParser {
     EchoJsonFunction(arguments)
 }
 
-final case class EchoJsonFunction(override val jsonFunctionArguments: List[String])
-  extends ParsedJsonFunction {
+final case class EchoJsonFunction(
+    override val jsonFunctionArguments: List[String])
+    extends ParsedJsonFunction {
   override val functionName: Symbol = EachJsonFunctionParser.functionName
   override val jsonFunctionDependencyNames: Set[String] = Set.empty
   override val isValid: Boolean = jsonFunctionArguments.size > 0

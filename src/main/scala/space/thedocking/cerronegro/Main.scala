@@ -1,8 +1,8 @@
 package space.thedocking.cerronegro
 
-import slogging.{LogLevel, LoggerConfig, PrintLoggerFactory}
-import implicits._
 import cats.implicits._
+import slogging.{LogLevel, LoggerConfig, PrintLoggerFactory}
+import space.thedocking.cerronegro.implicits._
 
 object Main extends App {
 
