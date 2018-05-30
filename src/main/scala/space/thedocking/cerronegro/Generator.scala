@@ -1,15 +1,13 @@
 package space.thedocking.cerronegro
 
 import argonaut._
-import DecodeJsonCats.NonEmptyListDecodeJson
-import EncodeJsonCats.NonEmptyListEncodeJson
-import JsonCats._
 import Argonaut._
 import cats.Monoid
 import cats.data.NonEmptyList
 import cats.syntax.all._
 import slogging.LazyLogging
 import space.thedocking.cerronegro.GenerationContext.ExpressionRegex
+import implicits._
 
 import scala.annotation.tailrec
 
